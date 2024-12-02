@@ -4,13 +4,21 @@ const io = std.io;
 const mem = std.mem;
 
 pub fn part1() !void {
+    try checkReports(0);
+}
+
+pub fn part2() !void {
+    try checkReports(1);
+}
+
+pub fn checkReports(tolerance: i32) !void {
     const input: []const u8 = @embedFile("input/day2.txt");
 
     var sum: i32 = 0;
 
     var linesSplit = mem.splitScalar(u8, input, '\n');
     while (linesSplit.next()) |line| {
-        if (try checkReport(line)) {
+        if (try checkReport(line, tolerance)) {
             sum += 1;
         }
     }
@@ -19,9 +27,8 @@ pub fn part1() !void {
     try out.print("{}\n", .{sum});
 }
 
-pub fn part2() !void {}
-
-fn checkReport(report: []const u8) !bool {
+fn checkReport(report: []const u8, tolerance: i32) !bool {
+    var remainingTolerance = tolerance;
     var previous: i32 = 0;
     var direction: i32 = 0;
 
@@ -41,7 +48,10 @@ fn checkReport(report: []const u8) !bool {
             } else if (current > previous and direction >= 0 and current <= previous + 3) {
                 direction = 1;
             } else {
-                return false;
+                remainingTolerance -= 1;
+                if (remainingTolerance < 0) {
+                    return false;
+                }
             }
             previous = current;
         } else |_| {}
