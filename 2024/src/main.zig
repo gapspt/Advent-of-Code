@@ -3,6 +3,7 @@ const currentDay = @import("day1.zig");
 
 pub fn main() !void {
     try currentDay.part1();
+    try currentDay.part2();
 }
 
 test "simple test" {
