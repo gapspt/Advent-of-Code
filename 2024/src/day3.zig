@@ -8,16 +8,44 @@ const regex = @import("regex");
 const allocator = std.heap.page_allocator;
 
 pub fn part1() !void {
+    try scanInput(false);
+}
+
+pub fn part2() !void {
+    try scanInput(true);
+}
+
+pub fn scanInput(scanDoAndDont: bool) !void {
     const input: []const u8 = @embedFile("input/day3.txt");
 
     var sum: i64 = 0;
+    var checkDoMul = scanDoAndDont;
 
     var start: usize = 0;
     while (start < input.len) {
-        var foundIndex = mem.indexOfPos(u8, input, start, "mul(");
+        var foundIndex: ?usize = null;
+
+        foundIndex = mem.indexOfPos(u8, input, start, "mul(");
         if (foundIndex == null) {
             break;
         }
+
+        if (checkDoMul) {
+            const dontIndex = mem.indexOfPos(u8, input, start, "don't()");
+            if (dontIndex == null) {
+                checkDoMul = false;
+            } else if (dontIndex.? < foundIndex.?) {
+                start = dontIndex.? + 7;
+
+                foundIndex = mem.indexOfPos(u8, input, start, "do()");
+                if (foundIndex == null) {
+                    break;
+                }
+                start = foundIndex.? + 4;
+                continue;
+            }
+        }
+
         start = foundIndex.? + 4;
 
         foundIndex = mem.indexOfScalarPos(u8, input, start, ',');
@@ -50,5 +78,3 @@ pub fn part1() !void {
     const out = io.getStdOut().writer();
     try out.print("{}\n", .{sum});
 }
-
-pub fn part2() !void {}
