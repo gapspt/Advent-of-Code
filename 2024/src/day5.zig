@@ -8,6 +8,14 @@ const allocator = std.heap.page_allocator;
 const maxValue = 255;
 
 pub fn part1() !void {
+    try sumMiddlePages(true);
+}
+
+pub fn part2() !void {
+    try sumMiddlePages(false);
+}
+
+pub fn sumMiddlePages(correct: bool) !void {
     var matrix: [maxValue + 1][maxValue + 1]bool = undefined;
     for (&matrix) |*row| {
         @memset(row, false);
@@ -56,7 +64,28 @@ pub fn part1() !void {
                 }
             }
         }
-        if (valid) {
+
+        if (valid and correct) {
+            sum += items[items.len / 2];
+        } else if (!valid and !correct) {
+            // Naive way of fixing the pages' order
+            while (!valid) {
+                valid = true;
+                i = 0;
+                while (i < items.len) : (i += 1) {
+                    var j: usize = 0;
+                    while (j < i) : (j += 1) {
+                        if (matrix[items[i]][items[j]]) {
+                            valid = false;
+                            const temp = items[i];
+                            items[i] = items[j];
+                            items[j] = temp;
+                            break;
+                        }
+                    }
+                }
+            }
+
             sum += items[items.len / 2];
         }
 
@@ -66,5 +95,3 @@ pub fn part1() !void {
     const out = io.getStdOut().writer();
     try out.print("{}\n", .{sum});
 }
-
-pub fn part2() !void {}
