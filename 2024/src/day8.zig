@@ -1,5 +1,6 @@
 const std = @import("std");
 const io = std.io;
+const math = std.math;
 const mem = std.mem;
 const ArrayList = std.ArrayList;
 
@@ -15,6 +16,14 @@ var w: i16 = 0;
 var h: i16 = 0;
 
 pub fn part1() !void {
+    try calculate(false);
+}
+
+pub fn part2() !void {
+    try calculate(true);
+}
+
+fn calculate(repeat: bool) !void {
     try readMap();
     defer freeMap();
 
@@ -37,14 +46,32 @@ pub fn part1() !void {
                     }
 
                     const pos2 = mapItems[j];
-                    const x = pos1.x + pos1.x - pos2.x;
-                    const y = pos1.y + pos1.y - pos2.y;
 
-                    if (x >= 0 and x < w and y >= 0 and y < h and
-                        !items[@intCast(y)][@intCast(x)])
-                    {
-                        items[@intCast(y)][@intCast(x)] = true;
-                        sum += 1;
+                    var dx: i16 = pos1.x - pos2.x;
+                    var dy: i16 = pos1.y - pos2.y;
+                    const gcd: i16 = @intCast(math.gcd(@max(1, @abs(dx)), @max(1, @abs(dy))));
+                    dx = @divTrunc(dx, gcd);
+                    dy = @divTrunc(dy, gcd);
+
+                    var x: i16 = pos1.x;
+                    var y: i16 = pos1.y;
+                    if (!repeat) { // Count the antenas location only when repeat is true
+                        x += dx;
+                        y += dy;
+                    }
+
+                    while (x >= 0 and x < w and y >= 0 and y < h) {
+                        if (!items[@intCast(y)][@intCast(x)]) {
+                            items[@intCast(y)][@intCast(x)] = true;
+                            sum += 1;
+                        }
+
+                        if (!repeat) {
+                            break;
+                        }
+
+                        x += dx;
+                        y += dy;
                     }
                 }
             }
@@ -54,8 +81,6 @@ pub fn part1() !void {
     const out = io.getStdOut().writer();
     try out.print("{}\n", .{sum});
 }
-
-pub fn part2() !void {}
 
 fn readMap() !void {
     list = ArrayList([]bool).init(allocator);
