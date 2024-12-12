@@ -4,13 +4,21 @@ const mem = std.mem;
 const ArrayList = std.ArrayList;
 const AutoHashMap = std.AutoHashMap;
 
-const Node = struct { value: u8, reachable: ?AutoHashMap(u32, bool) };
+const Node = struct { value: u8, paths: u32, reachable: ?AutoHashMap(u32, bool) };
 
 const allocator = std.heap.page_allocator;
 
 const input: []const u8 = @embedFile("input/day10.txt");
 
 pub fn part1() !void {
+    try countTrails(false);
+}
+
+pub fn part2() !void {
+    try countTrails(true);
+}
+
+fn countTrails(distinctTrails: bool) !void {
     var list = ArrayList([]Node).init(allocator);
     defer list.deinit();
     var w: u32 = 0;
@@ -26,7 +34,7 @@ pub fn part1() !void {
         const arr = try allocator.alloc(Node, line.len);
         var x: u32 = 0;
         while (x < w) : (x += 1) {
-            arr[x] = .{ .value = line[x] - '0', .reachable = null };
+            arr[x] = .{ .value = line[x] - '0', .paths = 0, .reachable = null };
         }
 
         try list.append(arr);
@@ -50,8 +58,11 @@ pub fn part1() !void {
                 }
 
                 if (node.value == 9) {
-                    node.reachable = AutoHashMap(u32, bool).init(allocator);
-                    try node.reachable.?.put(y * w + x, false);
+                    node.paths = 1;
+                    if (!distinctTrails) {
+                        node.reachable = AutoHashMap(u32, bool).init(allocator);
+                        try node.reachable.?.put(y * w + x, false);
+                    }
                     continue;
                 }
 
@@ -76,31 +87,40 @@ pub fn part1() !void {
                 while (neighboursLength > 0) {
                     neighboursLength -= 1;
                     const neighbour = neighboursBuffer[neighboursLength];
-                    if (neighbour.?.value == node.value + 1 and neighbour.?.reachable != null) {
-                        if (node.reachable == null) {
-                            node.reachable = AutoHashMap(u32, bool).init(allocator);
-                        }
+                    if (neighbour.?.value == node.value + 1 and neighbour.?.paths > 0) {
+                        node.paths += neighbour.?.paths;
+                        if (!distinctTrails) {
+                            if (node.reachable == null) {
+                                node.reachable = AutoHashMap(u32, bool).init(allocator);
+                            }
 
-                        var iterator = neighbour.?.reachable.?.iterator();
-                        while (iterator.next()) |entry| {
-                            try node.reachable.?.put(entry.key_ptr.*, false);
+                            var iterator = neighbour.?.reachable.?.iterator();
+                            while (iterator.next()) |entry| {
+                                try node.reachable.?.put(entry.key_ptr.*, false);
+                            }
                         }
                     }
                     neighboursBuffer[neighboursLength] = null;
                 }
 
-                if (node.value == 0 and node.reachable != null) {
-                    sum += node.reachable.?.count();
+                if (node.value == 0 and node.paths > 0) {
+                    if (distinctTrails) {
+                        sum += node.paths;
+                    } else {
+                        sum += node.reachable.?.count();
+                    }
                 }
             }
         }
     }
 
-    for (items) |row| {
-        var x: u32 = 0;
-        while (x < w) : (x += 1) {
-            if (row[x].reachable != null) {
-                row[x].reachable.?.deinit();
+    if (!distinctTrails) {
+        for (items) |row| {
+            var x: u32 = 0;
+            while (x < w) : (x += 1) {
+                if (row[x].reachable != null) {
+                    row[x].reachable.?.deinit();
+                }
             }
         }
     }
@@ -108,5 +128,3 @@ pub fn part1() !void {
     const out = io.getStdOut().writer();
     try out.print("{}\n", .{sum});
 }
-
-pub fn part2() !void {}
