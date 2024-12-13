@@ -3,13 +3,21 @@ const io = std.io;
 const mem = std.mem;
 const ArrayList = std.ArrayList;
 
-const Plot = struct { plant: u8, root: *Plot, area: i32, perimeter: i32 };
+const Plot = struct { plant: u8, root: *Plot, area: i32, perimeter: i32, corners: i32 };
 
 const allocator: mem.Allocator = std.heap.page_allocator;
 
 const input: []const u8 = @embedFile("input/day12.txt");
 
 pub fn part1() !void {
+    try calcCost(false);
+}
+
+pub fn part2() !void {
+    try calcCost(true);
+}
+
+fn calcCost(useSides: bool) !void {
     var list = ArrayList([]Plot).init(allocator);
     defer list.deinit();
     var w: u32 = 0;
@@ -26,7 +34,7 @@ pub fn part1() !void {
 
         var x: u32 = 0;
         while (x < w) : (x += 1) {
-            arr[x] = .{ .plant = line[x], .root = undefined, .area = 0, .perimeter = 0 };
+            arr[x] = .{ .plant = line[x], .root = undefined, .area = 0, .perimeter = 0, .corners = 0 };
             const plot = &arr[x];
 
             var root = plot;
@@ -66,17 +74,37 @@ pub fn part1() !void {
 
             root.area += 1;
 
-            if (x == 0 or row[x - 1].plant != plant) {
-                root.perimeter += 1;
-            }
-            if (x + 1 == w or row[x + 1].plant != plant) {
-                root.perimeter += 1;
-            }
-            if (y <= 0 or items[y - 1][x].plant != plant) {
-                root.perimeter += 1;
-            }
-            if (y + 1 == h or items[y + 1][x].plant != plant) {
-                root.perimeter += 1;
+            const borderLeft = x == 0 or row[x - 1].plant != plant;
+            const borderRight = x + 1 == w or row[x + 1].plant != plant;
+            const borderTop = y == 0 or items[y - 1][x].plant != plant;
+            const borderBottom = y + 1 == h or items[y + 1][x].plant != plant;
+
+            if (useSides) {
+                if (borderLeft and (borderTop or (x != 0 and items[y - 1][x - 1].plant == plant))) {
+                    root.corners += 1;
+                }
+                if (borderRight and (borderBottom or (x + 1 != w and items[y + 1][x + 1].plant == plant))) {
+                    root.corners += 1;
+                }
+                if (borderTop and (borderRight or (y != 0 and items[y - 1][x + 1].plant == plant))) {
+                    root.corners += 1;
+                }
+                if (borderBottom and (borderLeft or (y + 1 != h and items[y + 1][x - 1].plant == plant))) {
+                    root.corners += 1;
+                }
+            } else {
+                if (borderLeft) {
+                    root.perimeter += 1;
+                }
+                if (borderRight) {
+                    root.perimeter += 1;
+                }
+                if (borderTop) {
+                    root.perimeter += 1;
+                }
+                if (borderBottom) {
+                    root.perimeter += 1;
+                }
             }
         }
     }
@@ -88,7 +116,12 @@ pub fn part1() !void {
         while (x < w) : (x += 1) {
             const plot = &row[x];
             if (plot == plot.root) {
-                sum += plot.area * plot.perimeter;
+                if (useSides) {
+                    // Note: There are as many sides as there are corners, so we count the corners since that is easier
+                    sum += plot.area * plot.corners;
+                } else {
+                    sum += plot.area * plot.perimeter;
+                }
             }
         }
     }
@@ -96,8 +129,6 @@ pub fn part1() !void {
     const out = io.getStdOut().writer();
     try out.print("{}\n", .{sum});
 }
-
-pub fn part2() !void {}
 
 fn findRoot(plot: *Plot) *Plot {
     if (plot == plot.root) {
