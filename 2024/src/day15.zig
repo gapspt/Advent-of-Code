@@ -7,6 +7,8 @@ const allocator: mem.Allocator = std.heap.page_allocator;
 
 const robot = '@';
 const box = 'O';
+const boxLeft = '[';
+const boxRight = ']';
 const wall = '#';
 const empty = '.';
 
@@ -18,6 +20,14 @@ const down = 'v';
 const input: []const u8 = @embedFile("input/day15.txt");
 
 pub fn part1() !void {
+    try sumCoordinates(false);
+}
+
+pub fn part2() !void {
+    try sumCoordinates(true);
+}
+
+fn sumCoordinates(wideBoxes: bool) !void {
     var list = ArrayList([]u8).init(allocator);
     defer {
         for (list.items) |it| {
@@ -38,11 +48,36 @@ pub fn part1() !void {
             break;
         }
 
-        try list.append(try allocator.dupe(u8, line));
+        var row: []u8 = undefined;
+        if (wideBoxes) {
+            row = try allocator.alloc(u8, line.len * 2);
+            var j: u32 = 0;
+            while (j < line.len) : (j += 1) {
+                const c = line[j];
+                switch (c) {
+                    box => {
+                        row[j * 2] = boxLeft;
+                        row[j * 2 + 1] = boxRight;
+                    },
+                    else => {
+                        row[j * 2] = c;
+                        row[j * 2 + 1] = c;
+                    },
+                }
+            }
+        } else {
+            row = try allocator.dupe(u8, line);
+        }
+
+        try list.append(row);
 
         if (mem.indexOfScalar(u8, line, robot)) |index| {
             xRobot = @intCast(index);
             yRobot = i;
+            if (wideBoxes) {
+                xRobot *= 2;
+                row[@intCast(xRobot + 1)] = empty;
+            }
         }
     }
 
@@ -61,27 +96,10 @@ pub fn part1() !void {
                 else => continue,
             }
 
-            // Find the first wall or empty space
-            var x = xRobot;
-            var y = yRobot;
-            while (true) {
-                x += dx;
-                y += dy;
-
-                const c = map[@intCast(y)][@intCast(x)];
-                if (c == wall) {
-                    // Hit a wall, nothing to do
-                    break;
-                }
-                if (c == empty) {
-                    // Empty space, push the boxes in-between
-                    map[@intCast(y)][@intCast(x)] = box;
-                    map[@intCast(yRobot)][@intCast(xRobot)] = empty;
-                    xRobot += dx;
-                    yRobot += dy;
-                    map[@intCast(yRobot)][@intCast(xRobot)] = robot;
-                    break;
-                }
+            if (pushBox(map, xRobot, yRobot, dx, dy, false)) {
+                _ = pushBox(map, xRobot, yRobot, dx, dy, true);
+                xRobot += dx;
+                yRobot += dy;
             }
         }
     }
@@ -91,7 +109,7 @@ pub fn part1() !void {
     for (map) |row| {
         var x: i32 = 0;
         for (row) |c| {
-            if (c == box) {
+            if (c == box or c == boxLeft) {
                 sum += y + x;
             }
             x += 1;
@@ -103,7 +121,43 @@ pub fn part1() !void {
     try out.print("{}\n", .{sum});
 }
 
-pub fn part2() !void {}
+fn pushBox(map: [][]u8, x: i32, y: i32, dx: i32, dy: i32, applyChanges: bool) bool {
+    const c = map[@intCast(y)][@intCast(x)];
+    switch (c) {
+        robot, box => {
+            const success = pushBox(map, x + dx, y + dy, dx, dy, applyChanges);
+            if (success and applyChanges) {
+                map[@intCast(y)][@intCast(x)] = empty;
+                map[@intCast(y + dy)][@intCast(x + dx)] = c;
+            }
+            return success;
+        },
+        boxLeft => {
+            var success = false;
+            if (dy == 0) {
+                if (dx < 0) {
+                    success = pushBox(map, x + dx, y + dy, dx, dy, applyChanges);
+                } else {
+                    success = pushBox(map, x + 1 + dx, y + dy, dx, dy, applyChanges);
+                }
+            } else {
+                success = pushBox(map, x + dx, y + dy, dx, dy, applyChanges) and
+                    pushBox(map, x + 1 + dx, y + dy, dx, dy, applyChanges);
+            }
+            if (success and applyChanges) {
+                map[@intCast(y)][@intCast(x)] = empty;
+                map[@intCast(y)][@intCast(x + 1)] = empty;
+                map[@intCast(y + dy)][@intCast(x + dx)] = c;
+                map[@intCast(y + dy)][@intCast(x + 1 + dx)] = boxRight;
+            }
+            return success;
+        },
+        boxRight => return pushBox(map, x - 1, y, dx, dy, applyChanges),
+        wall => return false,
+        else => return true,
+    }
+    return false;
+}
 
 fn print(map: [][]const u8) void {
     for (map) |row| {
