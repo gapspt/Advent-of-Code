@@ -41,7 +41,32 @@ pub fn part1() !void {
     try out.print("{}\n", .{score});
 }
 
-pub fn part2() !void {}
+pub fn part2() !void {
+    const w = 71;
+    const h = 71;
+
+    var map: [w * h]bool = undefined;
+    @memset(map[0..], false);
+
+    var linesSplit = mem.splitScalar(u8, input, '\n');
+    while (linesSplit.next()) |line| {
+        if (line.len == 0) {
+            break;
+        }
+
+        var valuesSplit = mem.splitScalar(u8, line, ',');
+        const x = try fmt.parseInt(u32, valuesSplit.first(), 10);
+        const y = try fmt.parseInt(u32, valuesSplit.next().?, 10);
+        map[x + (y * w)] = true;
+
+        const score = try findBestCost(&map, w, h, 0, 0, w - 1, h - 1);
+        if (score < 0) {
+            const out = io.getStdOut().writer();
+            try out.print("{s}\n", .{line});
+            break;
+        }
+    }
+}
 
 fn findBestCost(map: []const bool, w: i32, h: i32, xStart: i32, yStart: i32, xEnd: i32, yEnd: i32) !i32 {
     var minCosts = try allocator.alloc(i32, @intCast(w * h * 4));
