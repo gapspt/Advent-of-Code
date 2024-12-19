@@ -10,6 +10,14 @@ var allocator: mem.Allocator = std.heap.page_allocator;
 const input: []const u8 = @embedFile("input/day19.txt");
 
 pub fn part1() !void {
+    try findPossiblePatterns(true);
+}
+
+pub fn part2() !void {
+    try findPossiblePatterns(false);
+}
+
+pub fn findPossiblePatterns(firstOnly: bool) !void {
     var list = ArrayList([]const u8).init(allocator);
     defer list.deinit();
 
@@ -21,50 +29,46 @@ pub fn part1() !void {
     }
     _ = linesSplit.next();
 
-    var items = list.items;
+    const items = list.items;
 
-    // Prune patterns that are made of other patterns
-    var len = items.len;
-    var i: u32 = 0;
-    while (i < len) {
-        const item = items[i];
-        const lastItem = items[len - 1];
-        items[i] = lastItem;
-
-        if (canMatch(items[0..(len - 1)], item)) {
-            len -= 1;
-        } else {
-            items[i] = item;
-            items[len - 1] = lastItem;
-            i += 1;
-        }
-    }
-    items = items[0..len];
-
-    var sum: i32 = 0;
+    var sum: i64 = 0;
     while (linesSplit.next()) |line| {
         if (line.len == 0) {
             break;
         }
 
-        if (canMatch(items, line)) {
-            sum += 1;
-        }
+        sum += try countMatches(items, line, firstOnly);
     }
 
     const out = io.getStdOut().writer();
     try out.print("{}\n", .{sum});
 }
 
-pub fn part2() !void {}
+fn countMatches(patterns: [][]const u8, design: []const u8, firstOnly: bool) !i64 {
+    const counts = try allocator.alloc(i64, design.len + 1);
+    defer allocator.free(counts);
+    @memset(counts, -1);
+    return countMatchesAux(patterns, design, firstOnly, counts);
+}
+fn countMatchesAux(patterns: [][]const u8, design: []const u8, firstOnly: bool, counts: []i64) i64 {
+    if (counts[design.len] >= 0) {
+        return counts[design.len];
+    }
 
-fn canMatch(patterns: [][]const u8, design: []const u8) bool {
+    var count: i64 = 0;
     for (patterns) |pattern| {
         if (mem.startsWith(u8, design, pattern)) {
-            if (pattern.len == design.len or canMatch(patterns, design[pattern.len..])) {
-                return true;
+            if (pattern.len == design.len) {
+                count += 1;
+            } else {
+                count += countMatchesAux(patterns, design[pattern.len..], firstOnly, counts);
+            }
+
+            if (firstOnly and count > 0) {
+                break;
             }
         }
     }
-    return false;
+    counts[design.len] = count;
+    return count;
 }
