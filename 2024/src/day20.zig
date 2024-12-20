@@ -10,6 +10,14 @@ var allocator: mem.Allocator = std.heap.page_allocator;
 const input: []const u8 = @embedFile("input/day20.txt");
 
 pub fn part1() !void {
+    try printCheats(2, 100);
+}
+
+pub fn part2() !void {
+    try printCheats(20, 100);
+}
+
+fn printCheats(jumpLen: i32, minCostSave: i32) !void {
     var list = ArrayList([]const u8).init(allocator);
     defer list.deinit();
 
@@ -44,13 +52,11 @@ pub fn part1() !void {
     const costs = try findCosts(map, w, h, xStart, yStart, xEnd, yEnd);
     defer allocator.free(costs);
 
-    const cheats = findCheats(costs, w, h, 100);
+    const cheats = findCheats(costs, w, h, jumpLen, minCostSave);
 
     const out = io.getStdOut().writer();
     try out.print("{}\n", .{cheats});
 }
-
-pub fn part2() !void {}
 
 fn findCosts(map: [][]const u8, w: i32, h: i32, xStart: i32, yStart: i32, xEnd: i32, yEnd: i32) ![]i32 {
     const costs = try allocator.alloc(i32, @intCast(w * h));
@@ -103,10 +109,7 @@ fn findCosts(map: [][]const u8, w: i32, h: i32, xStart: i32, yStart: i32, xEnd: 
     return costs;
 }
 
-fn findCheats(costs: []const i32, w: i32, h: i32, minCostSave: i32) i32 {
-    const w2 = w - 2;
-    const h2 = h - 2;
-
+fn findCheats(costs: []const i32, w: i32, h: i32, jumpLen: i32, minCostSave: i32) i32 {
     var cheats: i32 = 0;
     var y: i32 = 0;
     while (y < h) : (y += 1) {
@@ -117,17 +120,24 @@ fn findCheats(costs: []const i32, w: i32, h: i32, minCostSave: i32) i32 {
                 continue;
             }
 
-            if (x >= 2 and costs[@intCast((x - 2) + (y * w))] - cost - 2 >= minCostSave) {
-                cheats += 1;
-            }
-            if (x < w2 and costs[@intCast((x + 2) + (y * w))] - cost - 2 >= minCostSave) {
-                cheats += 1;
-            }
-            if (y >= 2 and costs[@intCast(x + ((y - 2) * w))] - cost - 2 >= minCostSave) {
-                cheats += 1;
-            }
-            if (y < h2 and costs[@intCast(x + ((y + 2) * w))] - cost - 2 >= minCostSave) {
-                cheats += 1;
+            const xMax = @min(x + jumpLen, w - 1);
+            const yMax = @min(y + jumpLen, h - 1);
+
+            var y2 = @max(0, y - jumpLen);
+            while (y2 <= yMax) : (y2 += 1) {
+                const dy = @abs(y2 - y);
+
+                var x2 = @max(0, x - jumpLen);
+                while (x2 <= xMax) : (x2 += 1) {
+                    const d: i32 = @intCast(@abs(x2 - x) + dy);
+                    if (d > jumpLen) {
+                        continue;
+                    }
+
+                    if (costs[@intCast(x2 + (y2 * w))] - cost - d >= minCostSave) {
+                        cheats += 1;
+                    }
+                }
             }
         }
     }
