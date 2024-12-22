@@ -4,12 +4,36 @@ const std = @import("std");
 const fmt = std.fmt;
 const io = std.io;
 const mem = std.mem;
+const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 
 const Position = struct { x: i8, y: i8 };
 
 const input: []const u8 = @embedFile("input/day21.txt");
 
+var allocator: mem.Allocator = undefined;
+
+var cache: []u64 = undefined;
+
 pub fn part1() !void {
+    var gpa = GeneralPurposeAllocator(.{}){};
+    allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    try calcSum(3);
+}
+
+pub fn part2() !void {
+    var gpa = GeneralPurposeAllocator(.{}){};
+    allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    try calcSum(26);
+}
+
+fn calcSum(numRobots: u8) !void {
+    try createCache(numRobots);
+    defer freeCache();
+
     var sum: u64 = 0;
 
     var linesSplit = mem.splitScalar(u8, input, '\n');
@@ -21,7 +45,7 @@ pub fn part1() !void {
         var count: u64 = 0;
         var prevButtonRobot0: u8 = 'A';
         for (line) |c| {
-            count += findMinPresses(0, prevButtonRobot0, c);
+            count += findMinPresses(numRobots, 0, prevButtonRobot0, c);
             prevButtonRobot0 = c;
         }
 
@@ -32,11 +56,14 @@ pub fn part1() !void {
     try out.print("{}\n", .{sum});
 }
 
-pub fn part2() !void {}
+fn findMinPresses(numRobots: u8, robotIndex: u8, currentButton: u8, wantedButton: u8) u64 {
+    const cacheIndex = getCacheIndex(robotIndex, currentButton, wantedButton);
+    if (getFromCache(cacheIndex)) |value| {
+        return value;
+    }
 
-fn findMinPresses(robotIndex: u8, currentButton: u8, wantedButton: u8) u64 {
     const firstRobot = robotIndex == 0;
-    const lastRobot = robotIndex == 2;
+    const lastRobot = robotIndex + 1 == numRobots;
 
     const getPosition: *const fn (u8) Position = if (firstRobot) &getPositionNumeric else &getPositionDirectional;
 
@@ -46,7 +73,7 @@ fn findMinPresses(robotIndex: u8, currentButton: u8, wantedButton: u8) u64 {
     const dist = @abs(wantedPos.x - currentPos.x) + @abs(wantedPos.y - currentPos.y);
 
     if (lastRobot or dist == 0) {
-        return dist + 1;
+        return putInCache(cacheIndex, dist + 1);
     }
 
     const nextRobotIndex = robotIndex + 1;
@@ -54,15 +81,15 @@ fn findMinPresses(robotIndex: u8, currentButton: u8, wantedButton: u8) u64 {
     const nextWantedButtonY: u8 = if (currentPos.y < wantedPos.y) 'v' else if (currentPos.y > wantedPos.y) '^' else 0;
 
     if (nextWantedButtonX == 0) {
-        return dist - 1 +
-            findMinPresses(nextRobotIndex, 'A', nextWantedButtonY) +
-            findMinPresses(nextRobotIndex, nextWantedButtonY, 'A');
+        return putInCache(cacheIndex, dist - 1 +
+            findMinPresses(numRobots, nextRobotIndex, 'A', nextWantedButtonY) +
+            findMinPresses(numRobots, nextRobotIndex, nextWantedButtonY, 'A'));
     }
 
     if (nextWantedButtonY == 0) {
-        return dist - 1 +
-            findMinPresses(nextRobotIndex, 'A', nextWantedButtonX) +
-            findMinPresses(nextRobotIndex, nextWantedButtonX, 'A');
+        return putInCache(cacheIndex, dist - 1 +
+            findMinPresses(numRobots, nextRobotIndex, 'A', nextWantedButtonX) +
+            findMinPresses(numRobots, nextRobotIndex, nextWantedButtonX, 'A'));
     }
 
     const invalidPos: Position = .{ .x = 0, .y = if (firstRobot) 3 else 0 };
@@ -72,21 +99,21 @@ fn findMinPresses(robotIndex: u8, currentButton: u8, wantedButton: u8) u64 {
     var min: u64 = 0;
     if (currentPos.y != invalidPos.y or wantedPos.x != invalidPos.x) {
         firstDoButtonX =
-            findMinPresses(nextRobotIndex, 'A', nextWantedButtonX) +
-            findMinPresses(nextRobotIndex, nextWantedButtonX, nextWantedButtonY) +
-            findMinPresses(nextRobotIndex, nextWantedButtonY, 'A');
+            findMinPresses(numRobots, nextRobotIndex, 'A', nextWantedButtonX) +
+            findMinPresses(numRobots, nextRobotIndex, nextWantedButtonX, nextWantedButtonY) +
+            findMinPresses(numRobots, nextRobotIndex, nextWantedButtonY, 'A');
         min = firstDoButtonX;
     }
     if (currentPos.x != invalidPos.x or wantedPos.y != invalidPos.y) {
         firstDoButtonY =
-            findMinPresses(nextRobotIndex, 'A', nextWantedButtonY) +
-            findMinPresses(nextRobotIndex, nextWantedButtonY, nextWantedButtonX) +
-            findMinPresses(nextRobotIndex, nextWantedButtonX, 'A');
+            findMinPresses(numRobots, nextRobotIndex, 'A', nextWantedButtonY) +
+            findMinPresses(numRobots, nextRobotIndex, nextWantedButtonY, nextWantedButtonX) +
+            findMinPresses(numRobots, nextRobotIndex, nextWantedButtonX, 'A');
         if (min == 0 or firstDoButtonY < min) {
             min = firstDoButtonY;
         }
     }
-    return dist - 2 + min;
+    return putInCache(cacheIndex, dist - 2 + min);
 }
 
 fn getPositionNumeric(b: u8) Position {
@@ -114,5 +141,52 @@ fn getPositionDirectional(c: u8) Position {
         'v' => .{ .x = 1, .y = 1 },
         '>' => .{ .x = 2, .y = 1 },
         else => @panic("Invalid directional button"),
+    };
+}
+
+fn createCache(numRobots: u8) !void {
+    cache = try allocator.alloc(u64, @as(u16, numRobots) << 8);
+    @memset(cache, 0);
+}
+
+fn freeCache() void {
+    allocator.free(cache);
+}
+
+fn getCacheIndex(robotIndex: u8, currentButton: u8, wantedButton: u8) u16 {
+    const r: u16 = robotIndex;
+    const c: u16 = getButtonCacheIndex(currentButton);
+    const w: u16 = getButtonCacheIndex(wantedButton);
+    return (r << 8) | (c << 4) | w;
+}
+
+fn getFromCache(cacheIndex: u16) ?u64 {
+    const val = cache[cacheIndex];
+    return if (val != 0) val else null;
+}
+
+fn putInCache(cacheIndex: u16, val: u64) u64 {
+    cache[cacheIndex] = val;
+    return val;
+}
+
+fn getButtonCacheIndex(b: u8) u4 {
+    return switch (b) {
+        'A' => 0,
+        '1' => 1,
+        '2' => 2,
+        '3' => 3,
+        '4' => 4,
+        '5' => 5,
+        '6' => 6,
+        '7' => 7,
+        '8' => 8,
+        '9' => 9,
+        '0' => 10,
+        '^' => 1,
+        '<' => 2,
+        'v' => 3,
+        '>' => 4,
+        else => @panic("Invalid button"),
     };
 }
