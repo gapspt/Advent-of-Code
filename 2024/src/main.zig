@@ -1,5 +1,5 @@
 const std = @import("std");
-const currentDay = @import("day23.zig");
+const currentDay = @import("day24.zig");
 
 pub fn main() !void {
     try currentDay.part1();
