@@ -89,4 +89,7 @@ pub fn part1() !void {
     try out.print("{}\n", .{sum});
 }
 
-pub fn part2() !void {}
+pub fn part2() !void {
+    const out = io.getStdOut().writer();
+    try out.print("Merry Christmas!\n", .{});
+}
